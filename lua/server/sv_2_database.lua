@@ -41,17 +41,28 @@ local function execute(query, nolog)
 	return data
 end
 
-local function dm_debug(text, is_tbl)
+function dm_debug(text, is_tbl)
 	--[[
 		Выделяет строку text в логах консоли так,
 		чтобы её было видно.
 	]]
 	print('/---------DEBUG---------/\n')
-	if is_tbl then print(text)
+	if not is_tbl then print(text)
 	else PrintTable(text) end
 	print('\n/---------DEBUG---------/')
 end
 
+local function create_insert_list(tbl)
+	--[[
+		Cоздает строку вида ('v1'), ('v2'), ..., ('vN')
+		из значений таблицы tbl
+	]]
+	local s = ''
+	for k, v in pairs(tbl) do
+		s = s .. string.format("('%s')", v) .. ','
+	end
+	return string.sub(s,1,#s-1)
+end
 
 
 
@@ -93,6 +104,38 @@ function loaderDb:var_exists(name)
 	return execute(query)[1].fl == '1'
 end
 
+function loaderDb:place_exists(name)
+	--[[
+		Проверяет, существует ли place с таким name
+		в базе данных.
+		Возвращает:
+			false or true
+	]]--
+	local query = [[
+		SELECT COUNT(place_name) AS fl
+		FROM dm_place
+		WHERE place_name = %s;
+	]]
+	query = string.format(query, sql.SQLStr(name))
+	return execute(query)[1].fl == '1'
+end
+
+function loaderDb:type_exists(name)
+	--[[
+		Проверяет, существует ли тип предметов с таким name
+		в базе данных.
+		Возвращает:
+			false or true
+	]]--
+	local query = [[
+		SELECT COUNT(type_name) AS fl
+		FROM dm_type
+		WHERE type_name = %s;
+	]]
+	query = string.format(query, sql.SQLStr(name))
+	return execute(query)[1].fl == '1'
+end
+
 
 
 function loaderDb:add_var(name, value, description)
@@ -118,14 +161,41 @@ function loaderDb:add_gamer(steam_id64)
 	end
 end
 
+function loaderDb:add_place(name, types)
+	if not self:place_exists(name) then
+		local query = [[
+			INSERT INTO dm_place(place_name, place_types)
+			VALUES (%s, %s);
+		]]
+		query = string.format(query, sql.SQLStr(name), sql.SQLStr(util.TableToJSON(types)))
+		execute(query)
+	end
+end
+
+function loaderDb:add_type(name)
+	if not self:type_exists(name) then
+		local query = [[
+			INSERT INTO dm_type(type_name)
+			VALUES (%s);
+		]]
+		query = string.format(query, sql.SQLStr(name))
+		execute(query)
+	end
+end
+
+function loaderDb:add_item(steam_id64, place_name, type_name, place_data, type_data)
+	dm_debug('АЙТЕМ был добавлен!')
+end
+
 
 function loaderDb:get_gamers_items(steam_id64)
 	if self:gamer_exists(steam_id64) then
 		local query = [[
 			SELECT dm_place.place_name  AS place,
 				   dm_type.type_name    AS type,
-				   dm_item.item_data    AS data,
-				   dm_item.lives_number AS lives
+				   dm_item.type_data    AS type_data,
+				   dm_item.place_data   AS place_data,
+				   dm_item.death_date   AS death
 			FROM dm_item 
 					JOIN dm_gamer USING (steam_id64)
 					JOIN dm_place USING (place_id)
@@ -195,7 +265,8 @@ function createrDb:dm_place()
 			sql.Query([[
 					CREATE TABLE dm_place(
 						place_id   INTEGER PRIMARY KEY,
-						place_name VARCHAR(30)
+						place_name VARCHAR(30),
+						place_types TEXT
 					);
 				]])
 		sql.Commit()
@@ -249,12 +320,14 @@ function createrDb:dm_item()
 						-- таблица с описанием предметов, принадлежащих игрокам
 						item_id    INTEGER PRIMARY KEY AUTOINCREMENT,
 						
-						steam_id64 INTEGER, 	                -- владелец
-						place_id   INTEGER, 				-- место пребывания предмета (инвентарь, статус и др)
-						type_id    INTEGER, 				-- тип предмета (оружие и др)
-							
-						item_data    TEXT, 						-- внутренняя информация о предмете
-						lives_number SMALLINT, 					-- количество жизней предмета. Если = 0, то удаляется
+						steam_id64 INTEGER, 	    -- владелец
+						place_id   INTEGER, 		-- место пребывания предмета (инвентарь, статус и др)
+						type_id    INTEGER, 		-- тип предмета (оружие и др)
+
+						type_data    TEXT, 			-- (что хранится) внутренняя информация о предмете
+						place_data   TEXT,          -- (где хранится) информация о местоположении предмета внутри данного хранилища   
+						
+						death_date   DATE, 			-- количество жизней предмета. Если = 0, то удаляется
 						
 						FOREIGN KEY (steam_id64) REFERENCES gamer (steam_id64) ON DELETE CASCADE,
 						FOREIGN KEY (place_id)   REFERENCES place (place_id),
@@ -267,31 +340,23 @@ function createrDb:dm_item()
 	return false
 end
 
-function createrDb:init_fill()
-	if not loaderDb:var_exists('init is done') then
-		loaderDb:add_var('init is done', 1, 'Была ли пройдена начальная инициализация базы данных.')
-		local query = [[
-			INSERT INTO dm_place (place_name)
-			VALUES ('status'),    -- статус персонажа (жизни, голод и тд)
-					('hotbar'),   -- в панели быстрого доступа
-					('inventory'),-- в инвентаре
-					('bank');     -- в банке
+-- function createrDb:init_fill()
+-- 	if not loaderDb:var_exists('init is done') then
+-- 		loaderDb:add_var('init is done', 1, 'Была ли пройдена начальная инициализация базы данных.')
+-- 		local query = [[
+-- 			INSERT INTO dm_place (place_name)
+-- 			VALUES %s;
 
-			INSERT INTO dm_type (type_name)
-			VALUES ('weapon'),    -- оружие
-					('ammo'),     -- боеприпасы
-					('armor'),    -- броня
-					('health'),   -- здоровье
-					('model'), 	  -- модель
-					('position'), -- позиция в пространстве
-					('team'),     -- профессия
-					('vehicle');  -- транспортное средство
-		]]
-		execute(query)
-		return true
-	end
-	return false
-end
+-- 			INSERT INTO dm_type (type_name)
+-- 			VALUES %s;
+-- 		]]
+-- 		query = string.format(query, create_insert_list(dm_PLACES),
+-- 					   			     create_insert_list(dm_TYPES))
+-- 		execute(query)
+-- 		return true
+-- 	end
+-- 	return false
+-- end
 
 
 function createrDb:Create()
@@ -317,20 +382,18 @@ function createrDb:Create()
 		else print('[data-manager: DataBase] Таблица dm_var уже существует!') 
 	end
 	-- и заполняет вспомогательные таблицы
-	if self:init_fill()
-		then print('[data-manager: DataBase] Вспомогательные таблицы заполнены!')
-		else print('[data-manager: DataBase] Вспомогательные таблицы уже заполнены!') 
-	end
+	-- if self:init_fill()
+	-- 	then print('[data-manager: DataBase] Вспомогательные таблицы заполнены!')
+	-- 	else print('[data-manager: DataBase] Вспомогательные таблицы уже заполнены!') 
+	-- end
 end
 
 function createrDb:DropAll()
 	-- Удаляет все таблицы
 	-- применять только если знаешь, что делаешь.
-	local query = [[
-		DROP TABLE dm_item;
-		DROP TABLE dm_gamer;
-		DROP TABLE dm_place;
-		DROP TABLE dm_type;
-	]]
-	execute(query)
+	if sql.TableExists('dm_item') then execute('DROP TABLE dm_item;') end
+	if sql.TableExists('dm_gamer') then execute('DROP TABLE dm_gamer;') end
+	if sql.TableExists('dm_place') then execute('DROP TABLE dm_place;') end
+	if sql.TableExists('dm_type') then execute('DROP TABLE dm_type;') end
+	if sql.TableExists('dm_var') then execute('DROP TABLE dm_var;') end
 end
