@@ -120,21 +120,68 @@ function loaderDb:place_exists(name)
 	return execute(query)[1].fl == '1'
 end
 
-function loaderDb:type_exists(name)
-	--[[
-		Проверяет, существует ли тип предметов с таким name
-		в базе данных.
-		Возвращает:
-			false or true
-	]]--
-	local query = [[
-		SELECT COUNT(type_name) AS fl
-		FROM dm_type
-		WHERE type_name = %s;
-	]]
-	query = string.format(query, sql.SQLStr(name))
-	return execute(query)[1].fl == '1'
+
+function loaderDb:get_place_id(place_name)
+	if self:place_exists(place_name) then
+		local query = [[
+			SELECT place_id
+			FROM dm_place
+			WHERE place_name = %s;
+		]]
+		query = string.format(query, sql.SQLStr(place_name))
+		return tonumber(execute(query)[1].place_id)
+	end
+	return false
 end
+
+
+
+
+function loaderDb:get_gamers_items(steam_id64)
+	if self:gamer_exists(steam_id64) then
+		local query = [[
+			SELECT COUNT(dm_place.place_name)  AS place,
+				   COUNT(dm_item.item_data)    AS place_data,
+				   COUNT(dm_item.death_date)   AS death
+			FROM dm_item 
+					JOIN dm_gamer USING (steam_id64)
+					JOIN dm_place USING (place_id);
+			-- WHERE steam_id64 = %s;
+		]]
+
+		query = string.format(query, steam_id64)
+		return execute(query)
+	end
+	return false
+end
+
+function loaderDb:get_var_value(name)
+	if self:var_exists(name) then
+		local query = [[
+			SELECT var_value AS val
+			FROM dm_var
+			WHERE var_name = %s;
+		]]
+		query = string.format(query,sql.SQLStr(name))
+		return tonumber(execute(query)[1].val)
+	end
+end
+
+-- function loaderDb:type_exists(name)
+-- 	--[[
+-- 		Проверяет, существует ли тип предметов с таким name
+-- 		в базе данных.
+-- 		Возвращает:
+-- 			false or true
+-- 	]]--
+-- 	local query = [[
+-- 		SELECT COUNT(type_name) AS fl
+-- 		FROM dm_type
+-- 		WHERE type_name = %s;
+-- 	]]
+-- 	query = string.format(query, sql.SQLStr(name))
+-- 	return execute(query)[1].fl == '1'
+-- end
 
 
 
@@ -161,21 +208,10 @@ function loaderDb:add_gamer(steam_id64)
 	end
 end
 
-function loaderDb:add_place(name, types)
+function loaderDb:add_place(name)
 	if not self:place_exists(name) then
 		local query = [[
-			INSERT INTO dm_place(place_name, place_types)
-			VALUES (%s, %s);
-		]]
-		query = string.format(query, sql.SQLStr(name), sql.SQLStr(util.TableToJSON(types)))
-		execute(query)
-	end
-end
-
-function loaderDb:add_type(name)
-	if not self:type_exists(name) then
-		local query = [[
-			INSERT INTO dm_type(type_name)
+			INSERT INTO dm_place(place_name)
 			VALUES (%s);
 		]]
 		query = string.format(query, sql.SQLStr(name))
@@ -183,42 +219,32 @@ function loaderDb:add_type(name)
 	end
 end
 
-function loaderDb:add_item(steam_id64, place_name, type_name, place_data, type_data)
-	dm_debug('АЙТЕМ был добавлен!')
+-- function loaderDb:add_type(name)
+-- 	if not self:type_exists(name) then
+-- 		local query = [[
+-- 			INSERT INTO dm_type(type_name)
+-- 			VALUES (%s);
+-- 		]]
+-- 		query = string.format(query, sql.SQLStr(name))
+-- 		execute(query)
+-- 	end
+-- end
+
+function loaderDb:add_item(steam_id64, place_name, item_data)
+	--[[
+		item_data: table
+	]]
+	-- здесь нужно сделать какую-то проверку на то, что такой айтем уже существует
+	local place_id = self:get_place_id(place_name)
+	local query = [[
+		INSERT INTO dm_item (steam_id64, place_id, item_data)
+		VALUES (%s, %d, %s);
+		DELETE FROM dm_item;
+	]]
+	query = string.format(query, tostring(steam_id64), place_id, sql.SQLStr(util.TableToJSON(item_data)))
+	execute(query)
 end
 
-
-function loaderDb:get_gamers_items(steam_id64)
-	if self:gamer_exists(steam_id64) then
-		local query = [[
-			SELECT dm_place.place_name  AS place,
-				   dm_type.type_name    AS type,
-				   dm_item.type_data    AS type_data,
-				   dm_item.place_data   AS place_data,
-				   dm_item.death_date   AS death
-			FROM dm_item 
-					JOIN dm_gamer USING (steam_id64)
-					JOIN dm_place USING (place_id)
-					JOIN dm_type USING (type_id)
-			WHERE steam_id64 = %s;
-		]]
-		query = string.format(query, steam_id64)
-		return execute(query)
-	end
-	return false
-end
-
-function loaderDb:get_var_value(name)
-	if self:var_exists(name) then
-		local query = [[
-			SELECT var_value AS val
-			FROM dm_var
-			WHERE var_name = %s;
-		]]
-		query = string.format(query,sql.SQLStr(name))
-		return tonumber(execute(query)[1].val)
-	end
-end
 
 
 function loaderDb:set_var(name, value)
@@ -242,21 +268,21 @@ end
 				CREATORS
 ------------------------------------------------------]]
 
-function createrDb:dm_type()
-	-- создает таблицу dm_tipe
-	if not sql.TableExists('dm_type') then 
-		sql.Begin()
-			sql.Query([[
-					CREATE TABLE dm_type(
-						type_id   INTEGER PRIMARY KEY,
-						type_name VARCHAR(30)
-					);
-				]])
-		sql.Commit()
-		return true
-	end
-	return false
-end
+-- function createrDb:dm_type()
+-- 	-- создает таблицу dm_tipe
+-- 	if not sql.TableExists('dm_type') then 
+-- 		sql.Begin()
+-- 			sql.Query([[
+-- 					CREATE TABLE dm_type(
+-- 						type_id   INTEGER PRIMARY KEY,
+-- 						type_name VARCHAR(30)
+-- 					);
+-- 				]])
+-- 		sql.Commit()
+-- 		return true
+-- 	end
+-- 	return false
+-- end
 
 function createrDb:dm_place()
 	-- создает таблицу dm_place
@@ -322,16 +348,13 @@ function createrDb:dm_item()
 						
 						steam_id64 INTEGER, 	    -- владелец
 						place_id   INTEGER, 		-- место пребывания предмета (инвентарь, статус и др)
-						type_id    INTEGER, 		-- тип предмета (оружие и др)
-
-						type_data    TEXT, 			-- (что хранится) внутренняя информация о предмете
-						place_data   TEXT,          -- (где хранится) информация о местоположении предмета внутри данного хранилища   
+					
+						item_data   TEXT,          -- (где хранится) информация о местоположении предмета внутри данного хранилища   
 						
 						death_date   DATE, 			-- количество жизней предмета. Если = 0, то удаляется
 						
 						FOREIGN KEY (steam_id64) REFERENCES gamer (steam_id64) ON DELETE CASCADE,
-						FOREIGN KEY (place_id)   REFERENCES place (place_id),
-						FOREIGN KEY (type_id)    REFERENCES type  (type_id)
+						FOREIGN KEY (place_id)   REFERENCES place (place_id)
 					);
 				]])
 		sql.Commit()
@@ -361,10 +384,10 @@ end
 
 function createrDb:Create()
 	-- создает всю структуру базы данных игроков
-	if self:dm_type() 
-		then print('[data-manager: DataBase] Таблица dm_type создана!')
-		else print('[data-manager: DataBase] Таблица dm_type уже существует!') 
-	end
+	-- if self:dm_type() 
+	-- 	then print('[data-manager: DataBase] Таблица dm_type создана!')
+	-- 	else print('[data-manager: DataBase] Таблица dm_type уже существует!') 
+	-- end
 	if self:dm_place() 
 		then print('[data-manager: DataBase] Таблица dm_place создана!')
 		else print('[data-manager: DataBase] Таблица dm_place уже существует!') 
@@ -394,6 +417,8 @@ function createrDb:DropAll()
 	if sql.TableExists('dm_item') then execute('DROP TABLE dm_item;') end
 	if sql.TableExists('dm_gamer') then execute('DROP TABLE dm_gamer;') end
 	if sql.TableExists('dm_place') then execute('DROP TABLE dm_place;') end
-	if sql.TableExists('dm_type') then execute('DROP TABLE dm_type;') end
 	if sql.TableExists('dm_var') then execute('DROP TABLE dm_var;') end
 end
+
+
+createrDb:Create()

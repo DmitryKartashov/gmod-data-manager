@@ -11,11 +11,11 @@ if (SERVER) then
 	include('server/sv_2_database.lua')               -- Интеграция с БД.
 
 
-	include('server/sv_3_type_loaders.lua')           -- Загрузчики разных типов type (определения базовых функций)
-	include('server/sv_3-1_custom_type_loaders.lua')  -- Кастомные. Здесь определяйте свои по шаблону.
+	--include('server/sv_3_type_loaders.lua')           -- Загрузчики разных типов type (определения базовых функций)
+	--include('server/sv_3-1_custom_type_loaders.lua')  -- Кастомные. Здесь определяйте свои по шаблону.
 	
 
-	include('server/sv_4_base_place_loaders.lua')     -- Загрузчики разных типов place (определения базовых функций).
+	include('server/sv_4_place_loaders.lua')     -- Загрузчики разных типов place (определения базовых функций).
 	include('server/sv_4-1_custom_place_loaders.lua') -- Кастомные. Здесь определяйте свои по шаблону.
 
 

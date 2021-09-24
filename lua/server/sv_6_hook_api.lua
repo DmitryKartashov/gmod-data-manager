@@ -22,16 +22,16 @@ local plyMeta = FindMetaTable("Player")
 ------------------------------------------------------]]
 
 
-function plyMeta:dm_SaveData()
+function dm_SaveData(ply)
 	--[[
 
 	]]
-	if not self:Alive() then return nil end
-	dm_common_save(self)
+	if not ply:Alive() then return nil end
+	dm_common_save(ply)
 end
 
 function DM_save_player(ply)
-	ply:dm_SaveData()
+	dm_SaveData(ply)
 end
 
 function DM_save_ShutDown()

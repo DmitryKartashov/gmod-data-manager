@@ -7,8 +7,8 @@
 
 if not SERVER then return end
 print ("[data-manager] ON")
-createrDb:DropAll()
---createrDb:Create()
+--createrDb:DropAll()
+
 
 hook.Add("PlayerInitialSpawn", "dm_init_player", DM_init_player)
 hook.Add("PlayerDisconnected", "dm_save_player", DM_save_player)
