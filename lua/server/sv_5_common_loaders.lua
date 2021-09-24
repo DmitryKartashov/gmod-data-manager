@@ -32,21 +32,20 @@ function dm_common_save(ply)
 	]]
 
 	for k, place in pairs(dm_PLACES) do
-		
 		COMMON_SAVE(ply, place)
 	end
-	dm_debug('ВОТ, ЧТО ВЫГРУЗИЛОСЬ')
-	PrintTable(loaderDb:get_gamers_items(ply:SteamID64()))
-	dm_debug('ВОТ, ЧТО ВЫГРУЗИЛОСЬ')
-
+	dm_debug('КОЛИЧЕСТВО ОБЪЕКТОВ У ИГРОКА: ' .. loaderDb:get_gamers_items_amount(ply:SteamID64()))
 end
 
 
-function dm_common_give(ply, data)
+function dm_common_give(ply)
 	--[[
 		Проходит по всем определенным местам, 
 	]]
 	for k, place in pairs(dm_PLACES) do
-		place:common_give(ply)
+		dm_debug('dm_common_give: place' .. tostring(place))
+		dm_debug('dm_common_give: place_name' .. tostring(place_name))
+		COMMON_GIVE(ply, place)
+		
 	end
 end

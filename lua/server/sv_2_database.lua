@@ -137,23 +137,51 @@ end
 
 
 
-function loaderDb:get_gamers_items(steam_id64)
+function loaderDb:get_gamers_items(steam_id64, place_name)
 	if self:gamer_exists(steam_id64) then
+		local place_id = loaderDb:get_place_id(place_name)
 		local query = [[
-			SELECT COUNT(dm_place.place_name)  AS place,
-				   COUNT(dm_item.item_data)    AS place_data,
-				   COUNT(dm_item.death_date)   AS death
+			SELECT dm_place.place_name  AS place,
+				   dm_item.item_data    AS place_data
 			FROM dm_item 
 					JOIN dm_gamer USING (steam_id64)
-					JOIN dm_place USING (place_id);
-			-- WHERE steam_id64 = %s;
+					JOIN dm_place USING (place_id)
+			-- WHERE steam_id64 = %s; -- AND
+					 -- dm_place.place_name = %s;
+		]]
+		
+		local delete_query = [[
+			DELETE FROM dm_item
+			WHERE steam_id64 = %s AND
+			      place_id = %d;
 		]]
 
-		query = string.format(query, steam_id64)
-		return execute(query)
+		query = string.format(query, steam_id64, sql.SQLStr(place_name))
+		delete_query = string.format(query, steam_id64, place_id)
+		
+		local items_data = execute(query)
+		execute(delete_query)
+
+		return items_data
 	end
 	return false
 end
+
+
+function loaderDb:get_gamers_items_amount(steam_id64)
+	if self:gamer_exists(steam_id64) then
+		local query = [[
+			SELECT COUNT(*)  AS amount
+			FROM dm_item
+			-- WHERE steam_id64 = %s;
+		]]
+
+		query = string.format(query, steam_id64, sql.SQLStr(place_name))
+		return execute(query)[1].amount
+	end
+	return false
+end
+
 
 function loaderDb:get_var_value(name)
 	if self:var_exists(name) then
@@ -232,6 +260,8 @@ end
 
 function loaderDb:add_item(steam_id64, place_name, item_data)
 	--[[
+		Перед добавлением не проверяет, есть ли такой элемент в таблице.
+
 		item_data: table
 	]]
 	-- здесь нужно сделать какую-то проверку на то, что такой айтем уже существует
@@ -239,9 +269,9 @@ function loaderDb:add_item(steam_id64, place_name, item_data)
 	local query = [[
 		INSERT INTO dm_item (steam_id64, place_id, item_data)
 		VALUES (%s, %d, %s);
-		DELETE FROM dm_item;
+		-- DELETE FROM dm_item;
 	]]
-	query = string.format(query, tostring(steam_id64), place_id, sql.SQLStr(util.TableToJSON(item_data)))
+	query = string.format(query, steam_id64, place_id, sql.SQLStr(util.TableToJSON(item_data)))
 	execute(query)
 end
 
@@ -260,7 +290,17 @@ function loaderDb:set_var(name, value)
 end
 
 
+function loaderDb:delete_items(steam_id64, place_name)
+	local place_id = self:get_place_id(place_name)
+	local query = [[
+			DELETE FROM dm_item
+			WHERE steam_id64 = %s AND
+				place_id = %d;
+	]]
 
+	query = string.format(query, steam_id64, place_id)
+	execute(query)
+end
 
 
 
@@ -340,8 +380,7 @@ end
 function createrDb:dm_item()
 	-- создает таблицу dm_item
 	if not sql.TableExists('dm_item') then 
-		sql.Begin()
-			sql.Query([[
+		local query = [[
 					CREATE TABLE dm_item(
 						-- таблица с описанием предметов, принадлежащих игрокам
 						item_id    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,13 +390,11 @@ function createrDb:dm_item()
 					
 						item_data   TEXT,          -- (где хранится) информация о местоположении предмета внутри данного хранилища   
 						
-						death_date   DATE, 			-- количество жизней предмета. Если = 0, то удаляется
-						
 						FOREIGN KEY (steam_id64) REFERENCES gamer (steam_id64) ON DELETE CASCADE,
 						FOREIGN KEY (place_id)   REFERENCES place (place_id)
 					);
-				]])
-		sql.Commit()
+				]]
+		execute(query)
 		return true
 	end
 	return false
@@ -421,4 +458,3 @@ function createrDb:DropAll()
 end
 
 
-createrDb:Create()

@@ -9,7 +9,7 @@ if (SERVER) then
 	print('/data-manager SERVER SIDE started/')
 	include('server/sv_1_config.lua')                 -- Базовые настройки.
 	include('server/sv_2_database.lua')               -- Интеграция с БД.
-
+	include('server/sv_2-1_database_init.lua')
 
 	--include('server/sv_3_type_loaders.lua')           -- Загрузчики разных типов type (определения базовых функций)
 	--include('server/sv_3-1_custom_type_loaders.lua')  -- Кастомные. Здесь определяйте свои по шаблону.

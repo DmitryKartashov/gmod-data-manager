@@ -22,7 +22,8 @@ local plyMeta = FindMetaTable("Player")
 ------------------------------------------------------]]
 
 
-function dm_SaveData(ply)
+
+function DM_save_player(ply)
 	--[[
 
 	]]
@@ -30,16 +31,12 @@ function dm_SaveData(ply)
 	dm_common_save(ply)
 end
 
-function DM_save_player(ply)
-	dm_SaveData(ply)
-end
-
 function DM_save_ShutDown()
 	for k,ply in pairs(player.GetAll()) do
 		DM_save_player(ply)
 	end
-	if CONFIG.print then
-		print("[data-manager] ПРОИЗОШЕЛ СБОЙ, НО ВАШИ ДАННЫЕ В БЕЗОПАСНОСТИ.")
+	if dm_CONFIG.print then
+		print("[data-manager] АВТОСОХРАНЕНИЕ ПРИ НЕПОЛАДКЕ.")
 	end
 end
 
@@ -51,41 +48,24 @@ function DM_save_Auto()
 		end)
 		time = time+0.5
 	end
-	if CONFIG.print then
-		print("[data-manager] ВАШИ ДАННЫЕ В БЕЗОПАСНОСТИ")
+	if dm_CONFIG.print then
+		print("[data-manager] АВТОСОХРАНЕНИЕ")
 	end
 end
 
 --[[----------------------------------------------------
 				ДЛЯ ВЫГРУЗКИ ДАННЫХ
 ------------------------------------------------------]]
-function plyMeta:dm_LoadData()
-	--[[
-	Возвращает таблицу со всем имуществом игрока. 
-	Если данного игрока в базе еще нет, то он добавляется.
-	Возвращает:
-		nil - если такого игрока еще не было
-		table - если игрок был
-	]]
-	local steam_id64 = self:SteamID64()
+
+
+function DM_init_player(ply) 
+	local steam_id64 = ply:SteamID64()
 
 	if not loaderDb:gamer_exists(steam_id64) then
 		loaderDb:add_gamer(steam_id64)
 		return nil
 	end
 	
-	return loaderDb:get_gamers_items(steam_id64)
-end
-
-function plyMeta:dm_GiveData(data)
-	--[[
-		нужно дождаться, когда же тут появится информация
-		Для этого нужно реализовать сохранение данных
-	]]
-end
-
-function DM_init_player(ply) 
-	local data = ply:dm_LoadData()
-	ply:dm_GiveData(data)
+	dm_common_give(ply)
 end
 

@@ -7,7 +7,6 @@
 
 if not SERVER then return end
 print ("[data-manager] ON")
---createrDb:DropAll()
 
 
 hook.Add("PlayerInitialSpawn", "dm_init_player", DM_init_player)
